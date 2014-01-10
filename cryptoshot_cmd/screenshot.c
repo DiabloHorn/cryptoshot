@@ -23,9 +23,12 @@ http://thelegendofrandom.com/blog/archives/2231
 #include <Windows.h>
 #include <stdio.h>
 #include "polarssl\pk.h"
+#include "polarssl/entropy.h"
+#include "polarssl/ctr_drbg.h"
+#include "polarssl/aes.h"
 
 //set to 1 for OutputDebugString usage instead of file output
-#define DISPLAY_ERRORS 0
+#define DISPLAY_ERRORS 1
 //error level output, you know the drill
 #define DBG_INFO 1
 #define DBG_WARNING 2
@@ -140,7 +143,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 /*
 	Takes a screenshot of the screen and saves it in memory
 */
-int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
+int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	//declaring & initializing needed vars
 	HDC screendc = NULL;
 	HDC compatiblescreendc = NULL;
@@ -153,7 +156,7 @@ int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
 	BITMAPINFOHEADER bminfoheader = {0};
 	DWORD dwBmpSize = 0;
 	HANDLE hDIB = NULL;
-	char *lpbitmap = NULL;
+	unsigned char *lpbitmap = NULL;
 	int getdibitsresult = 0;	
 	DWORD dwSizeofDIB = 0;
 	int screenwidth = 0;
@@ -231,7 +234,7 @@ int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
 	dwBmpSize = ((screenwidth * bminfoheader.biBitCount + 31) / 32) * 4 * screenheight;
 
 	hDIB = GlobalAlloc(GHND,dwBmpSize); 
-    lpbitmap = (char *)GlobalLock(hDIB);  
+    lpbitmap = (unsigned char *)GlobalLock(hDIB);  
 	//get the actual bitmap 'bits'
 	getdibitsresult = GetDIBits(compatiblescreendc, compatiblebitmap, 0,(UINT)finalbmp.bmHeight, lpbitmap, (BITMAPINFO *)&bminfoheader, DIB_RGB_COLORS);
 	if(getdibitsresult == 0){
@@ -252,7 +255,7 @@ int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
 	outputerror(DBG_INFO,"%s\n","screenshot taken, preparing memory file");
 	*screenshotbuffersize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + dwBmpSize;
 	outputerror(DBG_INFO,"%s %i\n","memfile size",*screenshotbuffersize);
-	*screenshotbuffer = (char *)malloc(*screenshotbuffersize);
+	*screenshotbuffer = (unsigned char *)malloc(*screenshotbuffersize);
 	if(screenshotbuffer == NULL){
 		Sleep(10000);// 10 seconds
 		*screenshotbuffer = (char *)malloc(*screenshotbuffersize);
@@ -285,6 +288,80 @@ int takescreenshot(char **screenshotbuffer,int *screenshotbuffersize){
 	return 0;
 }
 
+/*
+	shameless copy/paste from:
+	https://polarssl.org/kb/how-to/generate-an-aes-key
+*/
+unsigned char *generatekey(char *pers, int size){
+	ctr_drbg_context ctr_drbg = {0};
+	entropy_context entropy = {0};
+	int keysize = 0;
+	unsigned char *key = NULL;	
+	int ret = 0;
+
+	//convert to bytes
+	keysize = size / 8;
+
+	entropy_init( &entropy );
+	if((ret = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (unsigned char *)pers,strlen(pers))) != 0 ){
+		return NULL;
+	}
+		
+	key = (unsigned char *)malloc(keysize);
+	if(key == NULL){
+		return NULL;
+	}
+	
+	if((ret = ctr_drbg_random(&ctr_drbg,key,keysize)) != 0 ){
+		return NULL;
+	}
+	return key;
+}
+
+/*
+	shameless adjustment from:
+	https://polarssl.org/kb/how-to/encrypt-with-aes-cbc
+	not the most efficient one
+*/
+unsigned char *encryptaes(unsigned char *key, unsigned int keysize, unsigned char *iv, unsigned char *inputdata, int inputdatalen, int *outputdatalen){
+	aes_context aes_ctx = {0};
+	unsigned char *inputdatapadded = NULL;
+	unsigned char *encrypteddata = NULL;
+	int inputdatapaddedlen = 0;	
+
+	inputdatapaddedlen = inputdatalen+(16-(inputdatalen % 16));
+	*outputdatalen = inputdatapaddedlen;
+	//allocate enough space
+	inputdatapadded = (unsigned char *)malloc(inputdatapaddedlen);
+	encrypteddata = (unsigned char *)malloc(inputdatapaddedlen);
+	SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
+	SecureZeroMemory(encrypteddata,inputdatapaddedlen);
+
+	//setup the data that will eventually be encrypted
+	memcpy_s(inputdatapadded,inputdatapaddedlen,inputdata,inputdatalen);
+	//set key
+	if(aes_setkey_enc(&aes_ctx, key, keysize) != 0){
+		free(encrypteddata);
+		free(inputdatapadded);
+		return NULL;
+	}
+	//encrypt
+	if(aes_crypt_cbc(&aes_ctx,AES_ENCRYPT,inputdatapaddedlen,iv,inputdatapadded,encrypteddata) != 0){
+		SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
+		SecureZeroMemory(encrypteddata,inputdatapaddedlen);
+		free(encrypteddata);
+		free(inputdatapadded);
+		return NULL;
+	}
+
+	//free resources
+	SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
+	free(inputdatapadded);
+
+	return encrypteddata;
+
+}
+
 void rsacrypt(const unsigned char *rsapublickey, int rsapublickeylen){
 	pk_context pkctx = {0};
 	int pkresult = 0;
@@ -308,13 +385,21 @@ void rsacrypt(const unsigned char *rsapublickey, int rsapublickeylen){
 
 int main(int argc, char *argv[]){
 	//misc vars
-	unsigned char currentpath[MAX_PATH] = {0};
+	char currentpath[MAX_PATH] = {0};
 	//vars for getting public key from exe
 	unsigned char *pubrsakey = NULL;
 	int pubkeylen = 0;	
 	//vars for taking the screenshot
-	char *finalbmpfile = NULL;
+	unsigned char *finalbmpfile = NULL;
 	int finalbmpfilesize = 0;
+	//vars for data encryption
+	char *keypersonalisation = "5T+qDlP1=R1ek?GLqi|=)1O(niSimHBx|2\5QE.DN<7W\"]I@:?uSa#}txXN<9oG6";
+	char *ivpersonalisation = "J0eeYYCW.`6m;I5[v4|]0NDe1Hx)Co8D u]~9ZC\"x6AESc=a\\/W-e7d1bnMwq,z=]";	
+	unsigned char *aeskey = NULL;
+	unsigned char *aesiv = NULL;
+	unsigned char *encrypteddata = NULL;
+	int encrypteddatalen = 0;
+	//vars for writing to file
 	DWORD dwBytesWritten = 0;
 	HANDLE hFile = NULL;
 
@@ -326,6 +411,8 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 
+	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+
 	/* take screenshot */
 	if(takescreenshot(&finalbmpfile,&finalbmpfilesize) == 1){
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
@@ -334,17 +421,33 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 
-	/* encrypt screenshot */
-
-	/* save screenshot */
+	/* encrypt and save screenshot */
 	hFile = CreateFile("screen.bmp", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	WriteFile(hFile,finalbmpfile,finalbmpfilesize,&dwBytesWritten,NULL);
+
+	aeskey = generatekey(keypersonalisation,256);
+	aesiv = generatekey(ivpersonalisation,128);
+	
+		
+	WriteFile(hFile,aeskey,32,&dwBytesWritten,NULL);
+	WriteFile(hFile,aesiv,16,&dwBytesWritten,NULL);
+
+	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
+	if(encrypteddata == NULL){
+		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		free(finalbmpfile);
+		exit(1);
+	}
+	//no need to leave plaintext screenshot in memory any longer
+	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+	free(finalbmpfile);
+	/* save screenshot */
+	WriteFile(hFile,encrypteddata,encrypteddatalen,&dwBytesWritten,NULL);
 	CloseHandle(hFile);
 
 	/* cleanup */
-	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
-	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
-	free(finalbmpfile);
+	
+	
 	free(pubrsakey);
 	return 0;
 }
