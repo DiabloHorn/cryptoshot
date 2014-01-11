@@ -1,28 +1,37 @@
 /*
-http://stackoverflow.com/questions/3291167/how-to-make-screen-screenshot-with-win32-in-c
-Use GetDC(NULL); to get a DC for the entire screen.
-Use CreateCompatibleDC to get a compatible DC.
-Use CreateCompatibleBitmap to create a bitmap to hold the result.
-Use SelectObject to select the bitmap into the compatible DC.
-Use BitBlt to copy from the screen DC to the compatible DC.
-Deselect the bitmap from the compatible DC.
-When you create the compatible bitmap, you want it compatible with the screen DC, not the compatible DC.
+Author: DiabloHorn http://diablohorn.wordpress.com
+Project: cryptoshot, taking enrypted screenshots
+keywords: rsa, aes, dual monitor, screenshot
 
-Capturing an Image
+Resources used during the development proces:
+
+Taking a screenshot & multiple monitors:
 http://msdn.microsoft.com/en-us/library/windows/desktop/dd183402(v=vs.85).aspx
-
 http://www.codeproject.com/Articles/101272/Creation-of-Multi-monitor-Screenshots-Using-WinAPI
 http://www.codeproject.com/Articles/2522/Multiple-Monitor-Support#xx223852xx
+http://stackoverflow.com/questions/3291167/how-to-make-screen-screenshot-with-win32-in-c
+	Use GetDC(NULL); to get a DC for the entire screen.
+	Use CreateCompatibleDC to get a compatible DC.
+	Use CreateCompatibleBitmap to create a bitmap to hold the result.
+	Use SelectObject to select the bitmap into the compatible DC.
+	Use BitBlt to copy from the screen DC to the compatible DC.
+	Deselect the bitmap from the compatible DC.
+	When you create the compatible bitmap, you want it compatible with the screen DC, not the compatible DC.
 
+Working with encryption
 https://polarssl.org/kb/compiling-and-building/using-polarssl-in-microsoft-visual-studio-2010
 https://polarssl.org/discussions/generic/how-to-read-an-openssl-generated-pem-txt-file
 http://stackoverflow.com/questions/1231178/load-an-x509-pem-file-into-windows-cryptoapi
-smaller exe
+http://stackoverflow.com/questions/10212515/pycrypto-encrypt-an-string-twice-using-rsa-and-pkcs1
+http://stackoverflow.com/questions/11505547/how-calculate-size-of-rsa-cipher-text-using-key-size-clear-text-length
+
+Producint a smaller exe (not used yet in this project configuration)
+Use at your own risk
 http://thelegendofrandom.com/blog/archives/2231
 */
 #include <Windows.h>
 #include <stdio.h>
-#include "polarssl\pk.h"
+#include "polarssl/pk.h"
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 #include "polarssl/aes.h"
@@ -73,7 +82,8 @@ void outputerror(int dbglevel,const char *format,...){
 
 /*
 	Retrieves the public key from itself, layout on disk:
-	[exe file [public key] [public key size] ]
+	[exe file data][public key(string)][public key size(int)]
+	
 */
 unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	HANDLE openedfile = NULL;
@@ -315,6 +325,8 @@ unsigned char *generatekey(char *pers, int size){
 	if((ret = ctr_drbg_random(&ctr_drbg,key,keysize)) != 0 ){
 		return NULL;
 	}
+
+	entropy_free(&entropy);
 	return key;
 }
 
@@ -362,27 +374,66 @@ unsigned char *encryptaes(unsigned char *key, unsigned int keysize, unsigned cha
 
 }
 
-void rsacrypt(const unsigned char *rsapublickey, int rsapublickeylen){
+/*
+	get context to public key by parsing it
+*/
+pk_context getpubkeycontext(const unsigned char *rsapublickey, int rsapublickeylen){
 	pk_context pkctx = {0};
 	int pkresult = 0;
-	unsigned char *output = NULL;
-	size_t olen=0,osize = 0;
 
 	pk_init(&pkctx);
 	pkresult = pk_parse_public_key(&pkctx,rsapublickey,rsapublickeylen);
-	printf("pkloadkey %i\n",pkresult);
+	if(pkresult != 0){
+		return pkctx;
+	}	
+
 	pkresult = 0;
 	pkresult = pk_can_do(&pkctx,POLARSSL_PK_RSA);
-	printf("pkcando %i\n",pkresult);
-	printf("%s %Iu\n",pkctx.pk_info->name,pk_get_len(&pkctx));
-	output = (unsigned char *)malloc(pk_get_len(&pkctx));
-	free(output);
-	pk_free(&pkctx);
+	if(pkresult != 1){
+		return pkctx;
+	}
+	
+	return pkctx;
+}
+/*
+	rsa pkcs1 v1.5 encryption
+*/
+unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const unsigned int plaintextsize,unsigned int *encryptedoutputlen){
+	entropy_context entropy = {0};
+	ctr_drbg_context ctr_drbg = {0};		
+	int pkresult = 0;
+	unsigned char *encryptedoutput = NULL;
+	unsigned int encryptedoutputsize = 0;
+	char pers[33] = "3s:!2OXI(FX%#Q($[CEjiGRIk\\-)4e&?";
+	int ret = 0;
+
+	entropy_init( &entropy );
+	if((ret = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (unsigned char *)&pers[0],strlen(pers))) != 0 ){
+		return NULL;
+	}
+
+
+	encryptedoutputsize = pk_get_len(pkctx);
+	encryptedoutput = (unsigned char *)malloc(encryptedoutputsize);
+	SecureZeroMemory(encryptedoutput,encryptedoutputsize);
+
+	//You can change this to RSA-OAEP if you prefer
+	pkresult = 0;
+	pkresult = pk_encrypt(pkctx,plaintext,plaintextsize,encryptedoutput,encryptedoutputlen,encryptedoutputsize,ctr_drbg_random,&ctr_drbg);
+
+	if(pkresult != 0){
+		return NULL;
+	}
+
+	entropy_free(&entropy);	
+	return encryptedoutput;
 }
 
-
-
-
+/*
+	main logic, output file format:
+	[length encrypted key data(int)][encrypted key data][encrypted bmp data]
+	where key daya = [aes key][aes iv]
+*/
 int main(int argc, char *argv[]){
 	//misc vars
 	char currentpath[MAX_PATH] = {0};
@@ -393,12 +444,16 @@ int main(int argc, char *argv[]){
 	unsigned char *finalbmpfile = NULL;
 	int finalbmpfilesize = 0;
 	//vars for data encryption
+	pk_context pk_ctx;
 	char *keypersonalisation = "5T+qDlP1=R1ek?GLqi|=)1O(niSimHBx|2\5QE.DN<7W\"]I@:?uSa#}txXN<9oG6";
 	char *ivpersonalisation = "J0eeYYCW.`6m;I5[v4|]0NDe1Hx)Co8D u]~9ZC\"x6AESc=a\\/W-e7d1bnMwq,z=]";	
 	unsigned char *aeskey = NULL;
 	unsigned char *aesiv = NULL;
 	unsigned char *encrypteddata = NULL;
 	int encrypteddatalen = 0;
+	unsigned char *pubkeyencrypteddata;
+	unsigned int pubkeyencrypteddatalen = 0;
+	unsigned char keydata[48] = {0};
 	//vars for writing to file
 	DWORD dwBytesWritten = 0;
 	HANDLE hFile = NULL;
@@ -412,7 +467,6 @@ int main(int argc, char *argv[]){
 	}
 
 	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
-
 	/* take screenshot */
 	if(takescreenshot(&finalbmpfile,&finalbmpfilesize) == 1){
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
@@ -421,33 +475,56 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 
-	/* encrypt and save screenshot */
-	hFile = CreateFile("screen.bmp", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
+	/* generate keys, encrypt keys, encrypt screenshot, save screenshot */
 	aeskey = generatekey(keypersonalisation,256);
 	aesiv = generatekey(ivpersonalisation,128);
-	
-		
-	WriteFile(hFile,aeskey,32,&dwBytesWritten,NULL);
-	WriteFile(hFile,aesiv,16,&dwBytesWritten,NULL);
+	memcpy_s(keydata,48,aeskey,32);
+	memcpy_s(keydata+32,48,aesiv,16);
 
-	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
-	if(encrypteddata == NULL){
+	/* get and parse public key */
+	pk_ctx = getpubkeycontext(pubrsakey,pubkeylen);
+	if(pk_get_len(&pk_ctx) == 0){
+		pk_free(&pk_ctx);
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 		free(finalbmpfile);
 		exit(1);
 	}
-	//no need to leave plaintext screenshot in memory any longer
-	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
-	free(finalbmpfile);
+	/* encrypt aes key and iv */
+	pubkeyencrypteddata = (unsigned char *)malloc(pk_get_len(&pk_ctx));
+	SecureZeroMemory(pubkeyencrypteddata,pk_get_len(&pk_ctx));
+	pubkeyencrypteddata = rsacrypt(&pk_ctx,keydata,48,&pubkeyencrypteddatalen);
+	if(pubkeyencrypteddata == NULL){
+		pk_free(&pk_ctx);
+		SecureZeroMemory(aeskey,32);
+		SecureZeroMemory(aesiv,16);
+		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		exit(1);
+	}
+	hFile = CreateFile("screen.enc", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	WriteFile(hFile,(char *)&pubkeyencrypteddatalen,4,&dwBytesWritten,NULL);
+	WriteFile(hFile,pubkeyencrypteddata,pubkeyencrypteddatalen,&dwBytesWritten,NULL);
+	//encrypt and save screenshot
+	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
+	if(encrypteddata == NULL){
+		pk_free(&pk_ctx);
+		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		free(finalbmpfile);
+		exit(1);
+	}
 	/* save screenshot */
 	WriteFile(hFile,encrypteddata,encrypteddatalen,&dwBytesWritten,NULL);
 	CloseHandle(hFile);
 
-	/* cleanup */
-	
-	
+	/* cleanup */	
+	pk_free(&pk_ctx);
+	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+	SecureZeroMemory(aeskey,32);
+	SecureZeroMemory(aesiv,16);
+	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+	free(finalbmpfile);
 	free(pubrsakey);
 	return 0;
 }
