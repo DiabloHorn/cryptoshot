@@ -1,16 +1,50 @@
+#!/usr/bin/env python
+"""
+Author: DiabloHorn http://diablohorn.wordpress.com
+Project: cryptoshot, taking enrypted screenshots
+"""
 from Crypto.PublicKey import RSA
 import struct
+import argparse
 
-#http://stackoverflow.com/questions/3504955/using-rsa-in-python
-if __name__ == "__main__":
-    rsaprivatekey = RSA.generate(2048) 
+def appendpublickey(filename,rsapublickey,rsapublickeylen):
+    with open(filename,'a+b') as binaryfile:
+        binaryfile.write(rsapublickey)
+        binaryfile.write(struct.pack('i',rsapublickeylen))
+        
+def writedatatofile(filename,data):
+    f = open (filename,'w')
+    f.write(data)
+    f.close()
+    
+def generatersakeypair(keypairsize):
+    rsaprivatekey = RSA.generate(keypairsize) 
     rsaprivatekey_pem = rsaprivatekey.exportKey()
     rsapublickey_pem = rsaprivatekey.publickey().exportKey()
-    rsapublickeysize = len(rsapublickey_pem)
-    print rsapublickeysize
-    f = open ('private.key','w')
-    f.write(rsaprivatekey_pem)
-    f.close()
-    with open('Release\\cryptoshot_cmd.exe','a+b') as binaryfile:
-        binaryfile.write(rsapublickey_pem)
-        binaryfile.write(struct.pack('i',rsapublickeysize))
+    return (rsaprivatekey_pem, rsapublickey_pem)
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()        
+    parser.add_argument("exefile",help="Executable to which the public key will be appended")
+    parser.add_argument("--keysize",type=int,choices=[1024, 2048, 3072, 4096],help="RSA keypair size")
+    parser.add_argument("--privkeysave",help="location for storing the private key")
+    args = parser.parse_args()
+
+    if args.keysize:
+        rsakeysize = args.keysize        
+    else:
+        rsakeysize = 2048
+
+    if args.privkeysave:
+        privkeyoutput = args.privkeysave
+    else:
+        privkeyoutput = "private.key"
+        
+    print "Generating RSA keypair of size: %s" % rsakeysize
+    rsapriv,rsapub = generatersakeypair(rsakeysize)
+    print "Generation done"
+    print "Saving private key to: %s" % privkeyoutput    
+    writedatatofile(privkeyoutput,rsapriv)
+    print "Adding public key to %s" % args.exefile
+    appendpublickey(args.exefile,rsapub,len(rsapub))

