@@ -35,9 +35,9 @@ The encrypted file format looks like this:
 
 The following files are part of cryptoshot, the one with a * are the minimum required to use:
 
-bin/cryptoshot.exe* 
+binaries/cryptoshot.exe* 
     uses winmain, thus it does not popup on screen when run
-bin/cryptoshot_cmd.exe 
+binaries/cryptoshot_cmd.exe 
     traditional main, mainly intended for debugging purposes
 cryptoshot_pki_init.py*
     generates rsa public/private keypair and appends them to cryptoshot
