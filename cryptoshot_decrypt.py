@@ -4,6 +4,7 @@ Author: DiabloHorn http://diablohorn.wordpress.com
 Project: cryptoshot, taking enrypted screenshots
 """
 from Crypto.Cipher import PKCS1_v1_5
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA
@@ -34,11 +35,12 @@ def getprivatersakey(privatekeyfile):
     file.close()
     return RSA.importKey(rsaprivatekeystring)
 
-def decrypt_rsa(data,key):
-    dsize = SHA.digest_size
-    sentinel = Random.new().read(48+dsize)
-    cipher = PKCS1_v1_5.new(key)    
-    return cipher.decrypt(data,sentinel)
+def decrypt_rsa(data,rsakey):
+    #dsize = SHA.digest_size
+    #ssentinel = Random.new().read(48+dsize)
+    #cipher = PKCS1_v1_5.new(key)
+    cipher = PKCS1_OAEP.new(rsakey,label="cryptoshot")    
+    return cipher.decrypt(data)
 
 def decrypt_aes(encrypted, key, IV):
     aes = AES.new(key, AES.MODE_CBC, IV)
@@ -52,11 +54,16 @@ def savescreenshot(filename, data):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("encryptedscreenshot",help="screenshot(s) to decrypt",nargs='+')
-    parser.add_argument("rsaprivatekey",help="RSA private key file")    
+    parser.add_argument("--rsaprivatekey",help="RSA private key file")    
     args = parser.parse_args()
 
+    if args.rsaprivatekey:
+        rsaprivatekey = getprivatersakey(args.rsaprivatekey)
+    else:
+        rsaprivatekey = getprivatersakey("private.key")
+        
     print "Importing private rsa key %s" % args.rsaprivatekey
-    rsaprivatekey = getprivatersakey(args.rsaprivatekey)
+    
     for encshot in args.encryptedscreenshot:
         print "Parsing encrypted screenshot %s" % encshot
         encaeskeys,encdata = parsefile(encshot)

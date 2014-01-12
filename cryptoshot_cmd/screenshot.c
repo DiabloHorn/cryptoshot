@@ -32,6 +32,7 @@ http://thelegendofrandom.com/blog/archives/2231
 #include <Windows.h>
 #include <stdio.h>
 #include "polarssl/pk.h"
+#include "polarssl/rsa.h"
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 #include "polarssl/aes.h"
@@ -419,15 +420,16 @@ pk_context getpubkeycontext(const unsigned char *rsapublickey, int rsapublickeyl
 /*
 	rsa pkcs1 v1.5 encryption
 */
-unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const unsigned int plaintextsize,unsigned int *encryptedoutputlen){
+unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const unsigned int plaintextsize){
 	entropy_context entropy = {0};
-	ctr_drbg_context ctr_drbg = {0};		
+	ctr_drbg_context ctr_drbg = {0};	
+	rsa_context rsactx = {0};
 	int pkresult = 0;
 	unsigned char *encryptedoutput = NULL;
 	unsigned int encryptedoutputsize = 0;
 	char pers[33] = "3s:!2OXI(FX%#Q($[CEjiGRIk\\-)4e&?";
 	int ret = 0;
-
+	
 	entropy_init( &entropy );
 	if((ret = ctr_drbg_init(&ctr_drbg, entropy_func, &entropy, (unsigned char *)&pers[0],strlen(pers))) != 0 ){
 		outputerror(DBG_ERROR,"%s\n","rsacrypt::failed to initialize random generator");
@@ -436,19 +438,21 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 
 
 	encryptedoutputsize = pk_get_len(pkctx);
+	outputerror(DBG_INFO,"%s %Iu\n","rsacrypt::buffer size for rsa encrypted output ",encryptedoutputsize);
 	encryptedoutput = (unsigned char *)malloc(encryptedoutputsize);
-	SecureZeroMemory(encryptedoutput,encryptedoutputsize);
-
-	//You can change this to RSA-OAEP if you prefer
-	pkresult = 0;
-	pkresult = pk_encrypt(pkctx,plaintext,plaintextsize,encryptedoutput,encryptedoutputlen,encryptedoutputsize,ctr_drbg_random,&ctr_drbg);
-
+	SecureZeroMemory(encryptedoutput,encryptedoutputsize);		
+	rsa_copy(&rsactx,pkctx->pk_ctx);
+	rsactx.padding = RSA_PKCS_V21;
+	rsactx.hash_id = POLARSSL_MD_SHA1;	
+	pkresult = 0;		
+	pkresult = rsa_rsaes_oaep_encrypt(&rsactx,ctr_drbg_random,&ctr_drbg,RSA_PUBLIC,"cryptoshot",strlen("cryptoshot"),plaintextsize,plaintext,encryptedoutput);
 	if(pkresult != 0){
-		outputerror(DBG_ERROR,"%s\n","rsacrypt::failed to encrypt data");
+		outputerror(DBG_ERROR,"%s %i\n","rsacrypt::failed to encrypt data",pkresult);
 		return NULL;
 	}
 
 	entropy_free(&entropy);	
+	rsa_free(&rsactx);
 	return encryptedoutput;
 }
 
@@ -518,9 +522,10 @@ int main(int argc, char *argv[]){
 		exit(1);
 	}
 	/* encrypt aes key and iv */
-	pubkeyencrypteddata = (unsigned char *)malloc(pk_get_len(&pk_ctx));
-	SecureZeroMemory(pubkeyencrypteddata,pk_get_len(&pk_ctx));
-	pubkeyencrypteddata = rsacrypt(&pk_ctx,keydata,48,&pubkeyencrypteddatalen);
+	pubkeyencrypteddatalen = pk_get_len(&pk_ctx);
+	pubkeyencrypteddata = (unsigned char *)malloc(pubkeyencrypteddatalen);
+	SecureZeroMemory(pubkeyencrypteddata,pubkeyencrypteddatalen);
+	pubkeyencrypteddata = rsacrypt(&pk_ctx,keydata,48);
 	if(pubkeyencrypteddata == NULL){
 		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt aes key + aes iv");
 		pk_free(&pk_ctx);
