@@ -1,5 +1,6 @@
 cryptoshot - making and saving encrypted screenshots
 
+==== GENERAL
 This application will make a screenshot of the desktop. If the desktop consists of multiple monitors
 it should still work fine. However it has only been tested with a dual monitor setup.
 
@@ -9,6 +10,29 @@ All keys are random and you are encouraged to change the "personalization string
 used as input for the random number generation. The PRNG does not depend on them, but it's recommended
 to change them.
 
+==== USAGE
+To use cryptoshot you need to prepare the cryptoshot binary with a public key:
+
+C:\test>cryptoshot_pki_init.py binaries\cryptoshot.exe
+Generating RSA keypair of size: 2048
+Generation done
+Saving private key to: private.key
+Adding public key to binaries\cryptoshot.exe
+
+Then you run cryptoshot which will produce a screen.enc file. You can decrypt this as follow:
+
+C:\test>cryptoshot_decrypt.py binaries\screen.enc
+Importing private rsa key private.key
+Parsing encrypted screenshot binaries\screen.enc
+Decrypting aes key and iv
+Decrypting hmac key
+Verifying hmac
+Decrypting screenshot
+Saving decrypted screenshot
+
+Make sure you don't loose the private RSA key or you will not be able to decrypt screenshosts.
+
+==== FILE FORMATS
 The modified executable file containing the public key looks like this:
 
 |--------------------------|
@@ -33,6 +57,7 @@ The encrypted file format looks like this:
 | AES encrypted screenshot        |
 |---------------------------------|
 
+==== FILE OVERVIEW
 The following files are part of cryptoshot, the one with a * are the minimum required to use:
 
 binaries/cryptoshot.exe* 

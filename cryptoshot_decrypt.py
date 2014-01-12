@@ -11,6 +11,7 @@ from Crypto.Hash import SHA512
 import struct
 import sys
 import ntpath
+import argparse
 
 #debugging purposes only
 def printhex(data):
