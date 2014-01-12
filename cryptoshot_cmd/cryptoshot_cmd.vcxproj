@@ -76,7 +76,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>C:\Users\devmac\projects\polarssl-1.3.3\visualc\VS2010\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

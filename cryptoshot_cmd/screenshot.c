@@ -36,6 +36,7 @@ http://thelegendofrandom.com/blog/archives/2231
 #include "polarssl/entropy.h"
 #include "polarssl/ctr_drbg.h"
 #include "polarssl/aes.h"
+#include "polarssl/md.h"
 
 //set to 1 for OutputDebugString usage instead of file output
 #define GENERATE_OUTPUT 1
@@ -481,6 +482,10 @@ int main(int argc, char *argv[]){
 	unsigned char *pubkeyencrypteddata;
 	unsigned int pubkeyencrypteddatalen = 0;
 	unsigned char keydata[48] = {0};
+	//vars for hmac
+	char *hmackeypersonalisation = "UGY624Z078'm.34\"|TSUOu\\M4}r!ammvFekes:%48=RmaA\\?SC.UTi8zB)A1a[P:";
+	unsigned char *hmackey = NULL;
+	unsigned char hmacoutput[64] = {0};
 	//vars for writing to file
 	DWORD dwBytesWritten = 0;
 	HANDLE hFile = NULL;
@@ -508,6 +513,7 @@ int main(int argc, char *argv[]){
 	/* generate keys, encrypt keys, encrypt screenshot, save screenshot */
 	aeskey = generatekey(keypersonalisation,256);
 	aesiv = generatekey(ivpersonalisation,128);
+	hmackey = generatekey(hmackeypersonalisation,256);
 	memcpy_s(keydata,48,aeskey,32);
 	memcpy_s(keydata+32,48,aesiv,16);
 
@@ -538,7 +544,7 @@ int main(int argc, char *argv[]){
 	hFile = CreateFile("screen.enc", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	WriteFile(hFile,(char *)&pubkeyencrypteddatalen,4,&dwBytesWritten,NULL);
 	WriteFile(hFile,pubkeyencrypteddata,pubkeyencrypteddatalen,&dwBytesWritten,NULL);
-	//encrypt and save screenshot
+	//encrypt screenshot
 	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
 	if(encrypteddata == NULL){
 		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt the actual screenshot");
@@ -548,6 +554,23 @@ int main(int argc, char *argv[]){
 		free(finalbmpfile);
 		exit(1);
 	}
+	// write encrypted hmac key
+	SecureZeroMemory(pubkeyencrypteddata,pubkeyencrypteddatalen);
+	pubkeyencrypteddata = rsacrypt(&pk_ctx,hmackey,32);
+	if(pubkeyencrypteddata == NULL){
+		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt hmac key");
+		pk_free(&pk_ctx);
+		SecureZeroMemory(aeskey,32);
+		SecureZeroMemory(aesiv,16);
+		SecureZeroMemory(hmackey,32);
+		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		exit(1);
+	}
+	WriteFile(hFile,pubkeyencrypteddata,pubkeyencrypteddatalen,&dwBytesWritten,NULL);
+	//calculate hmac(encrypteddata) and write to file
+	sha512_hmac(hmackey,32,encrypteddata,encrypteddatalen,hmacoutput,0);
+	WriteFile(hFile,hmacoutput,64,&dwBytesWritten,NULL);
 	/* save screenshot */
 	WriteFile(hFile,encrypteddata,encrypteddatalen,&dwBytesWritten,NULL);
 	CloseHandle(hFile);
@@ -555,8 +578,10 @@ int main(int argc, char *argv[]){
 	/* cleanup */	
 	pk_free(&pk_ctx);
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+	SecureZeroMemory(keydata,48);
 	SecureZeroMemory(aeskey,32);
 	SecureZeroMemory(aesiv,16);
+	SecureZeroMemory(hmackey,32);
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 	free(finalbmpfile);
 	free(pubrsakey);
