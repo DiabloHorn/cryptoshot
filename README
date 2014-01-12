@@ -1,0 +1,49 @@
+cryptoshot - making and saving encrypted screenshots
+
+This application will make a screenshot of the desktop. If the desktop consists of multiple monitors
+it should still work fine. However it has only been tested with a dual monitor setup.
+
+cryptoshot uses public/private RSA keypairs to protect the AES 256bit session key.
+Additionally a SHA512-HMAC is calculated over the encrypted data using a 256bit key.
+All keys are random and you are encouraged to change the "personalization strings" in the code which are 
+used as input for the random number generation. The PRNG does not depend on them, but it's recommended
+to change them.
+
+The modified executable file containing the public key looks like this:
+
+|--------------------------|
+| executable               |
+|--------------------------|
+| public RSA key           |
+|--------------------------|
+| length of public RSA key |
+|--------------------------|
+
+The encrypted file format looks like this:
+
+|---------------------------------|
+| length encrypted session key    |
+|---------------------------------|
+| RSA-OAEP encrypted AES KEY + IV |
+|---------------------------------|
+| RSA-OAEP encrypted HMAC key     |
+|---------------------------------|
+| HMAC of the encrypted data      |
+|---------------------------------|
+| AES encrypted screenshot        |
+|---------------------------------|
+
+The following files are part of cryptoshot, the one with a * are the minimum required to use:
+
+bin/cryptoshot.exe* 
+    uses winmain, thus it does not popup on screen when run
+bin/cryptoshot_cmd.exe 
+    traditional main, mainly intended for debugging purposes
+cryptoshot_pki_init.py*
+    generates rsa public/private keypair and appends them to cryptoshot
+cryptoshot_decrypt.py*
+    verifies hmac and decrypts the screenshot
+    
+enjoy,
+
+DiabloHorn http://diablohorn.wordpress.com
