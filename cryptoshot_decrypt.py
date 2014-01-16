@@ -8,6 +8,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA512
+import zlib
 import struct
 import sys
 import ntpath
@@ -79,9 +80,9 @@ if __name__ == "__main__":
         hmackey = decrypt_rsa(enchmac,rsaprivatekey)
         print "Verifying hmac"
         if ishmac_ok(hmackey,hmac,encdata):
-            print "Decrypting screenshot"
+            print "Decrypting & decompressing screenshot"
             decshot = decrypt_aes(encdata,aeskeys[0:32],aeskeys[32:])
             print "Saving decrypted screenshot"
-            savescreenshot(ntpath.basename(encshot), decshot)
+            savescreenshot(ntpath.basename(encshot), zlib.decompress(decshot))
         else:
             print "Verifying hmac failed"         

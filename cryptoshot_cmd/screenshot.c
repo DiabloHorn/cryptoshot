@@ -36,6 +36,8 @@ http://thelegendofrandom.com/blog/archives/2231
 #include "polarssl/ctr_drbg.h"
 #include "polarssl/aes.h"
 #include "polarssl/md.h"
+#include "zlib/zconf.h"
+#include "zlib/zlib.h"
 
 //not really needed
 #define WIN32_LEAN_AND_MEAN
@@ -45,6 +47,9 @@ properties->c/c++->general->Additional Include Directories (set to: libheaderfil
 properties->Linker->general->Additional Library Directories (set to: libfiles directory)
 */
 #pragma comment(lib,"PolarSSL.lib")
+//http://stackoverflow.com/questions/5424549/unresolved-externals-despite-linking-in-zlib-lib
+//also /nodefaultlib:libcmt.lib
+#pragma comment(lib,"zlibstat.lib")
 
 //set to 0 for no info.output file generation
 #define GENERATE_OUTPUT 1
@@ -474,6 +479,21 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
 	where key data = [aes key][aes iv]
 */
+
+int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **donecompressing){
+	int estimatedcompressedlen = 0;
+	
+	estimatedcompressedlen = compressBound(tocompresslen);
+	*donecompressing = (char *)malloc(estimatedcompressedlen);
+	if(compress2(*donecompressing,&estimatedcompressedlen,tocompress,tocompresslen,9) != Z_OK){
+		SecureZeroMemory(*donecompressing,estimatedcompressedlen);
+		free(*donecompressing);
+		return 0;
+	}
+
+	return estimatedcompressedlen;
+}
+
 int main(int argc, char *argv[]){
 	//misc vars
 	char currentpath[MAX_PATH] = {0};
@@ -482,6 +502,8 @@ int main(int argc, char *argv[]){
 	int pubkeylen = 0;	
 	//vars for taking the screenshot
 	unsigned char *finalbmpfile = NULL;
+	unsigned char *finalcompressedbmpfile = NULL;
+	int finalcompressedbmpfilelen = 0;
 	int finalbmpfilesize = 0;
 	//vars for data encryption
 	pk_context pk_ctx;
@@ -569,8 +591,22 @@ int main(int argc, char *argv[]){
 	hFile = CreateFile("screen.enc", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	WriteFile(hFile,(char *)&pubkeyencrypteddatalen,4,&dwBytesWritten,NULL);
 	WriteFile(hFile,pubkeyencrypteddata,pubkeyencrypteddatalen,&dwBytesWritten,NULL);
+	/* compress screenshot */
+	outputerror(DBG_INFO,"%s\n","main::compressing screenshot");
+	finalcompressedbmpfilelen = compressdata(finalbmpfile,finalbmpfilesize,&finalcompressedbmpfile);
+	if(finalcompressedbmpfilelen == 0){
+		outputerror(DBG_ERROR,"%s\n","main::failed to compress final bmp file");
+		pk_free(&pk_ctx);
+		SecureZeroMemory(aeskey,32);
+		SecureZeroMemory(aesiv,16);
+		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(finalcompressedbmpfile,finalcompressedbmpfilelen);
+		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		exit(1);
+	}
+	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 	/* encrypt screenshot */
-	encrypteddata = encryptaes(aeskey,256,aesiv,finalbmpfile,finalbmpfilesize,&encrypteddatalen);
+	encrypteddata = encryptaes(aeskey,256,aesiv,finalcompressedbmpfile,finalcompressedbmpfilelen,&encrypteddatalen);
 	if(encrypteddata == NULL){
 		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt the actual screenshot");
 		pk_free(&pk_ctx);
@@ -609,6 +645,7 @@ int main(int argc, char *argv[]){
 	SecureZeroMemory(hmackey,32);
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 	free(finalbmpfile);
+	free(finalcompressedbmpfile);
 	free(aeskey);
 	free(aesiv);
 	free(hmackey);
