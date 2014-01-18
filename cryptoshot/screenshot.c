@@ -205,13 +205,13 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	int leftyscreenpos = 0;	
 	char currentpath[MAX_PATH] = {0};
 
-	//width in pixels of the virtual screen
-	leftxscreenpos = GetSystemMetrics(SM_XVIRTUALSCREEN);
-	//height in pixels of the virtual screen
-	leftyscreenpos = GetSystemMetrics(SM_YVIRTUALSCREEN);
 	//left side virtual screen coordinates
-	screenwidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	leftxscreenpos = GetSystemMetrics(SM_XVIRTUALSCREEN);
 	//top side virtual screen coordinates
+	leftyscreenpos = GetSystemMetrics(SM_YVIRTUALSCREEN);	
+	//width in pixels of the virtual screen
+	screenwidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	//height in pixels of the virtual screen
 	screenheight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 	/*actually take the screenshot*/
 	screendc = GetDC(NULL); 
