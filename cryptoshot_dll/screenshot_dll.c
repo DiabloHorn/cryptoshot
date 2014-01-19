@@ -1,33 +1,3 @@
-/*
-Author: DiabloHorn http://diablohorn.wordpress.com
-Project: cryptoshot, taking enrypted screenshots
-keywords: rsa, aes, dual monitor, screenshot
-
-Resources used during the development proces:
-
-Taking a screenshot & multiple monitors:
-http://msdn.microsoft.com/en-us/library/windows/desktop/dd183402(v=vs.85).aspx
-http://www.codeproject.com/Articles/101272/Creation-of-Multi-monitor-Screenshots-Using-WinAPI
-http://www.codeproject.com/Articles/2522/Multiple-Monitor-Support#xx223852xx
-http://stackoverflow.com/questions/3291167/how-to-make-screen-screenshot-with-win32-in-c
-	Use GetDC(NULL); to get a DC for the entire screen.
-	Use CreateCompatibleDC to get a compatible DC.
-	Use CreateCompatibleBitmap to create a bitmap to hold the result.
-	Use SelectObject to select the bitmap into the compatible DC.
-	Use BitBlt to copy from the screen DC to the compatible DC.
-	Deselect the bitmap from the compatible DC.
-	When you create the compatible bitmap, you want it compatible with the screen DC, not the compatible DC.
-
-Working with encryption
-https://polarssl.org/kb/compiling-and-building/using-polarssl-in-microsoft-visual-studio-2010
-https://polarssl.org/discussions/generic/how-to-read-an-openssl-generated-pem-txt-file
-http://stackoverflow.com/questions/1231178/load-an-x509-pem-file-into-windows-cryptoapi
-http://stackoverflow.com/questions/10212515/pycrypto-encrypt-an-string-twice-using-rsa-and-pkcs1
-http://stackoverflow.com/questions/11505547/how-calculate-size-of-rsa-cipher-text-using-key-size-clear-text-length
-
-Producing a smaller exe (not used yet in this project configuration) Use at your own risk
-http://thelegendofrandom.com/blog/archives/2231
-*/
 #include <Windows.h>
 #include <stdio.h>
 #include "polarssl/pk.h"
@@ -39,8 +9,6 @@ http://thelegendofrandom.com/blog/archives/2231
 #include "zlib/zconf.h"
 #include "zlib/zlib.h"
 
-//not really needed
-#define WIN32_LEAN_AND_MEAN
 /*
 make sure you set:
 properties->c/c++->general->Additional Include Directories (set to: libheaderfiles directory)
@@ -52,13 +20,13 @@ properties->Linker->general->Additional Library Directories (set to: libfiles di
 #pragma comment(lib,"zlibstat.lib")
 
 //set to 0 for no info.output file generation
-#define GENERATE_OUTPUT 1
+#define GENERATE_OUTPUT 0
 #define OUTPUT_LEVEL 1
 #define DBG_INFO 1
 #define DBG_WARNING 2
 #define DBG_ERROR 3
 
-
+HINSTANCE mydllhandle = NULL;
 /*
 	prints out messages to file
 	It being error messages, thus unencrypted be careful
@@ -180,6 +148,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	return publickey;
 }
 
+
 /*
 	Takes a screenshot of the screen and saves it in memory
 */
@@ -203,7 +172,6 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	int screenheight = 0;
 	int leftxscreenpos = 0;
 	int leftyscreenpos = 0;	
-	char currentpath[MAX_PATH] = {0};
 
 	//left side virtual screen coordinates
 	leftxscreenpos = GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -330,6 +298,7 @@ int takescreenshot(unsigned char **screenshotbuffer,int *screenshotbuffersize){
 	outputerror(DBG_INFO,"%s\n","takescreenshot::done screenshot in memory");
 	return 0;
 }
+
 
 /*
 	shameless copy/paste from:
@@ -488,14 +457,12 @@ int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **d
 	return estimatedcompressedlen;
 }
 
-
 /*
-	main logic, output file format:
-	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
-	where key data = [aes key][aes iv]
+	Still writes an encrypted file to the disk
+	If you want full in memory screenshots you can export the other functions
+	and do the main logic yourself or adjust this function write to a memory file.
 */
-
-int main(int argc, char *argv[]){
+__declspec(dllexport) int __cdecl getencryptedscreenshot(void){
 	//misc vars
 	char currentpath[MAX_PATH] = {0};
 	//vars for getting public key from exe
@@ -527,7 +494,7 @@ int main(int argc, char *argv[]){
 	
 	outputerror(DBG_INFO,"%s\n","main::started");
 	/* get public key*/
-	GetModuleFileName(NULL,&currentpath[0],sizeof(currentpath));
+	GetModuleFileName(mydllhandle,&currentpath[0],sizeof(currentpath));
 	pubrsakey = getpublickeyfromself(&currentpath[0],&pubkeylen);
 	if(pubrsakey == NULL){
 		outputerror(DBG_ERROR,"%s\n","main::failed to get public key");
@@ -655,4 +622,20 @@ int main(int argc, char *argv[]){
 	free(pubkeyencrypteddata);
 	outputerror(DBG_INFO,"%s\n","main::finished");
 	return 0;
+}
+
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved){
+	switch(fdwReason){
+		case DLL_PROCESS_ATTACH:
+			mydllhandle = hinstDLL;
+			break;
+		case DLL_PROCESS_DETACH:
+			break;
+		case DLL_THREAD_ATTACH:
+			mydllhandle = hinstDLL;
+			break;
+		case DLL_THREAD_DETACH:
+			break;
+	}
+	return 1;
 }

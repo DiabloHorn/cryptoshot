@@ -23,14 +23,21 @@ Then you run cryptoshot which will produce a screen.enc file. You can decrypt th
 
 C:\test>cryptoshot_decrypt.py binaries\screen.enc
 Importing private rsa key private.key
-Parsing encrypted screenshot binaries\screen.enc
+Parsing encrypted screenshot screen.enc
 Decrypting aes key and iv
 Decrypting hmac key
 Verifying hmac
-Decrypting screenshot
+Decrypting & decompressing screenshot
 Saving decrypted screenshot
 
 Make sure you don't loose the private RSA key or you will not be able to decrypt screenshosts.
+
+If you want to test the cryptoshot_dll.dll you need to initialise the public key in the same manner.
+You can take a screenshot using this:
+
+rundll32.exe Release\cryptoshot_dll.dll,getencryptedscreenshot
+
+Which will produce the same output as cryptoshot.exe.
 
 ==== FILE FORMATS
 The modified executable file containing the public key looks like this:
@@ -64,6 +71,8 @@ binaries/cryptoshot.exe*
     uses winmain, thus it does not popup on screen when run
 binaries/cryptoshot_cmd.exe 
     traditional main, mainly intended for debugging purposes
+binaries/cryptoshot_dll.dll
+    Same as cryptoshot.exe but compiled as a DLL
 cryptoshot_pki_init.py*
     generates rsa public/private keypair and appends them to cryptoshot
 cryptoshot_decrypt.py*

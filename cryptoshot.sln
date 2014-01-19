@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptoshot", "cryptoshot\cr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptoshot_cmd", "cryptoshot_cmd\cryptoshot_cmd.vcxproj", "{7C2670C7-46A0-4A10-8782-990C80BCEBFF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptoshot_dll", "cryptoshot_dll\cryptoshot_dll.vcxproj", "{F18EE763-DE13-465E-B8DD-B7F84EEC73F6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -17,6 +19,10 @@ Global
 		{7C2670C7-46A0-4A10-8782-990C80BCEBFF}.Debug|Win32.ActiveCfg = Debug|Win32
 		{7C2670C7-46A0-4A10-8782-990C80BCEBFF}.Release|Win32.ActiveCfg = Release|Win32
 		{7C2670C7-46A0-4A10-8782-990C80BCEBFF}.Release|Win32.Build.0 = Release|Win32
+		{F18EE763-DE13-465E-B8DD-B7F84EEC73F6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F18EE763-DE13-465E-B8DD-B7F84EEC73F6}.Debug|Win32.Build.0 = Debug|Win32
+		{F18EE763-DE13-465E-B8DD-B7F84EEC73F6}.Release|Win32.ActiveCfg = Release|Win32
+		{F18EE763-DE13-465E-B8DD-B7F84EEC73F6}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

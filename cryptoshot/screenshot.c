@@ -474,11 +474,6 @@ unsigned char *rsacrypt(pk_context *pkctx,const unsigned char *plaintext,const u
 	return encryptedoutput;
 }
 
-/*
-	main logic, output file format:
-	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
-	where key data = [aes key][aes iv]
-*/
 
 int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **donecompressing){
 	int estimatedcompressedlen = 0;
@@ -493,6 +488,12 @@ int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **d
 
 	return estimatedcompressedlen;
 }
+
+/*
+	main logic, output file format:
+	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
+	where key data = [aes key][aes iv]
+*/
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
 	//misc vars
