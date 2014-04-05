@@ -18,5 +18,19 @@
     <ClCompile Include="screenshot.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="simple_http.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="zmem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="simple_http.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="zmem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
