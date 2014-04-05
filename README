@@ -2,7 +2,8 @@ cryptoshot - making and saving encrypted screenshots
 
 ==== GENERAL
 This application will make a screenshot of the desktop. If the desktop consists of multiple monitors
-it should still work fine. However it has only been tested with a dual monitor setup.
+it should still work fine. However it has only been tested with a dual monitor setup. 
+The windows project has the added functionality of sending the screenshot to a server of your choosing.
 
 cryptoshot uses public/private RSA keypairs to protect the AES 256bit session key.
 Additionally a SHA512-HMAC is calculated over the encrypted data using a 256bit key.
@@ -13,7 +14,7 @@ to change them.
 ==== USAGE
 To use cryptoshot you need to prepare the cryptoshot binary with a public key:
 
-C:\test>cryptoshot_pki_init.py binaries\cryptoshot.exe
+C:\test>cryptoshot_init.py binaries\cryptoshot.exe http://youthost:portnumber/
 Generating RSA keypair of size: 2048
 Generation done
 Saving private key to: private.key
@@ -38,6 +39,12 @@ You can take a screenshot using this:
 rundll32.exe Release\cryptoshot_dll.dll,getencryptedscreenshot
 
 Which will produce the same output as cryptoshot.exe.
+
+You can setup the server by doing:
+
+sudo apt-get install flask
+
+Then you can just ./cryptoshot_server
 
 ==== FILE FORMATS
 The modified executable file containing the public key looks like this:
@@ -73,10 +80,12 @@ binaries/cryptoshot_cmd.exe
     traditional main, mainly intended for debugging purposes
 binaries/cryptoshot_dll.dll
     Same as cryptoshot.exe but compiled as a DLL
-cryptoshot_pki_init.py*
+python-code/cryptoshot_init.py*
     generates rsa public/private keypair and appends them to cryptoshot
-cryptoshot_decrypt.py*
+	changes the post url
+python-code/cryptoshot_decrypt.py*
     verifies hmac and decrypts the screenshot
+python-code/cryptoshot_server.py
     
 enjoy,
 
