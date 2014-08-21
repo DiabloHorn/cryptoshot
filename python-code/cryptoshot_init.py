@@ -38,7 +38,8 @@ def edituploadserver(filename,uploadserveraddress):
         binaryfile.seek(startoftext)
         binaryfile.write(uploadserveraddress)
         for i in range(toreplacelen,originaltextlen):
-            binaryfile.write(struct.pack('B', 0)) 
+            binaryfile.write(struct.pack('B', 0))
+    return ""
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()        

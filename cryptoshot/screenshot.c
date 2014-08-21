@@ -164,8 +164,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	if(setfilepointerresult == INVALID_SET_FILE_POINTER){
 		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not set pointer to beginning of public key data");
 		CloseHandle(openedfile);
-		SecureZeroMemory(publickey,publickeysize);
-		free(publickey);
+		zfree(publickey);
 		return NULL;
 	}
 	readfileresult = FALSE;
@@ -173,8 +172,7 @@ unsigned char *getpublickeyfromself(const char *filename,int *keylen){
 	if(readfileresult == FALSE){
 		outputerror(DBG_ERROR,"%s\n","getpublickeyfromself::could not read public key data");
 		CloseHandle(openedfile);
-		SecureZeroMemory(publickey,publickeysize);
-		free(publickey);
+		zfree(publickey);
 		return NULL;
 	}
 	CloseHandle(openedfile);
@@ -391,24 +389,20 @@ unsigned char *encryptaes(unsigned char *key, unsigned int keysize, unsigned cha
 	//setup the data that will eventually be encrypted
 	memcpy_s(inputdatapadded,inputdatapaddedlen,inputdata,inputdatalen);
 	//set key
-	if(aes_setkey_enc(&aes_ctx, key, keysize) != 0){
-		SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
-		free(encrypteddata);
-		free(inputdatapadded);
+	if(aes_setkey_enc(&aes_ctx, key, keysize) != 0){		
+		zfree(encrypteddata);
+		zfree(inputdatapadded);
 		return NULL;
 	}
 	//encrypt
 	if(aes_crypt_cbc(&aes_ctx,AES_ENCRYPT,inputdatapaddedlen,iv,inputdatapadded,encrypteddata) != 0){
-		SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
-		SecureZeroMemory(encrypteddata,inputdatapaddedlen);
-		free(encrypteddata);
-		free(inputdatapadded);
+		zfree(encrypteddata);
+		zfree(inputdatapadded);
 		return NULL;
 	}
 
 	//free resources
-	SecureZeroMemory(inputdatapadded,inputdatapaddedlen);
-	free(inputdatapadded);
+	zfree(inputdatapadded);
 
 	return encrypteddata;
 
@@ -482,9 +476,8 @@ int compressdata(unsigned char *tocompress, int tocompresslen, unsigned char **d
 	
 	estimatedcompressedlen = compressBound(tocompresslen);
 	*donecompressing = (char *)malloc(estimatedcompressedlen);
-	if(compress2(*donecompressing,&estimatedcompressedlen,tocompress,tocompresslen,9) != Z_OK){
-		SecureZeroMemory(*donecompressing,estimatedcompressedlen);
-		free(*donecompressing);
+	if(compress2(*donecompressing,&estimatedcompressedlen,tocompress,tocompresslen,9) != Z_OK){		
+		zfree(*donecompressing);
 		return 0;
 	}
 
@@ -572,10 +565,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
 	/* take screenshot */
 	if(takescreenshot(&finalbmpfile,&finalbmpfilesize) == 1){
-		outputerror(DBG_ERROR,"%s\n","main::failed to take screenshot");
-		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		outputerror(DBG_ERROR,"%s\n","main::failed to take screenshot");		
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
-		free(finalbmpfile);
+		zfree(finalbmpfile);
 		exit(1);
 	}
 
@@ -608,10 +600,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	pk_ctx = getpubkeycontext(pubrsakey,pubkeylen);
 	if(pk_get_len(&pk_ctx) == 0){
 		outputerror(DBG_ERROR,"%s\n","main::failed to parse public key");
-		pk_free(&pk_ctx);
-		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		pk_free(&pk_ctx);		
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
-		free(finalbmpfile);
+		zfree(finalbmpfile);
 		exit(1);
 	}
 	/* encrypt aes key and iv and write to file */
@@ -623,9 +614,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt aes key + aes iv");
 		pk_free(&pk_ctx);
 		SecureZeroMemory(aeskey,32);
-		SecureZeroMemory(aesiv,16);
-		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
+		SecureZeroMemory(aesiv,16);		
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		zfree(finalbmpfile);
 		exit(1);
 	}
 	hFile = CreateFile("screen.enc", GENERIC_WRITE, 0, NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -639,9 +630,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		pk_free(&pk_ctx);
 		SecureZeroMemory(aeskey,32);
 		SecureZeroMemory(aesiv,16);
-		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
-		SecureZeroMemory(finalcompressedbmpfile,finalcompressedbmpfilelen);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
+		zfree(finalbmpfile);
+		zfree(finalcompressedbmpfile);
 		exit(1);
 	}
 	SecureZeroMemory(finalbmpfile,finalbmpfilesize);
@@ -650,9 +641,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if(encrypteddata == NULL){
 		outputerror(DBG_ERROR,"%s\n","main::failed to encrypt the actual screenshot");
 		pk_free(&pk_ctx);
-		SecureZeroMemory(finalbmpfile,finalbmpfilesize);
 		SecureZeroMemory(currentpath,(sizeof(currentpath)/sizeof(currentpath[0])));
-		free(finalbmpfile);
+		zfree(finalbmpfile);
 		exit(1);
 	}
 	/* encrypt hmac key and write to file*/
